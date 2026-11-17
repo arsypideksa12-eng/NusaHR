@@ -251,11 +251,49 @@ function AppShell() {
       return;
     }
 
+    const isStarterAdmin =
+      normalizedEmail === 'admin@nusahr.id' && password === 'admin123';
+    const isStarterEmployee =
+      normalizedEmail === 'karyawan@nusahr.id' && password === 'karyawan123';
+
     setLoginLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      let signedUser: User;
+      try {
+        const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+        signedUser = cred.user;
+      } catch (signInErr) {
+        const errText = signInErr instanceof Error ? signInErr.message : String(signInErr);
+        const canAutoProvision =
+          (isStarterAdmin || isStarterEmployee) &&
+          (errText.includes('auth/user-not-found') || errText.includes('auth/invalid-credential'));
+
+        if (!canAutoProvision) {
+          throw signInErr;
+        }
+
+        const created = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+        const displayName = isStarterAdmin ? 'HR Administrator' : 'Budi Santoso';
+        await updateProfile(created.user, { displayName });
+        if (isStarterAdmin) {
+          await bootstrapAdminAccount(created.user, displayName);
+        }
+        await syncUserSession(created.user, displayName);
+        setProfileReady(true);
+        signedUser = created.user;
+      }
+
       if (portalMode === 'backoffice') {
-        const adminOk = await checkIsAdmin(cred.user);
+        let adminOk = await checkIsAdmin(signedUser);
+        if (!adminOk && isStarterAdmin) {
+          try {
+            await bootstrapAdminAccount(signedUser, 'HR Administrator');
+            await syncUserSession(signedUser, 'HR Administrator');
+            adminOk = true;
+          } catch {
+            // admins_meta/initialized already exists
+          }
+        }
         if (!adminOk) {
           setAuthError(
             `Akun ${identifier} terdaftar sebagai Karyawan, bukan Administrator Backoffice.`

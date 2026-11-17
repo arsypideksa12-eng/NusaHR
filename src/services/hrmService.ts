@@ -188,6 +188,51 @@ export async function seedInitialWorkspaceIfNeeded(adminUser: User): Promise<voi
         updatedAt: serverTimestamp(),
       });
     }
+
+    // Seed starter employee account (username: karyawan, pass: karyawan123) if not present
+    const starterEmpSnap = await getDocs(
+      query(collection(db, 'employees'), where('email', '==', 'karyawan@nusahr.id'))
+    );
+    if (starterEmpSnap.empty) {
+      const secondaryAuth = getSecondaryAuth();
+      let starterUid = '';
+      try {
+        const cred = await createUserWithEmailAndPassword(
+          secondaryAuth,
+          'karyawan@nusahr.id',
+          'karyawan123'
+        );
+        await updateProfile(cred.user, { displayName: 'Budi Santoso' });
+        starterUid = cred.user.uid;
+      } catch {
+        // Account may already exist in Auth; employee will still see it on login
+      } finally {
+        await firebaseSignOut(secondaryAuth).catch(() => {});
+      }
+
+      if (starterUid) {
+        await addDoc(collection(db, 'employees'), {
+          employeeCode: 'EMP-002',
+          userId: clip(starterUid, 128),
+          name: 'Budi Santoso',
+          email: 'karyawan@nusahr.id',
+          phone: '0813-8800-1122',
+          address: 'Jakarta Pusat',
+          positionId: clip(defaultPosition.id, 128),
+          positionTitle: 'Product Designer',
+          department: 'Design',
+          dailyRate: 210000,
+          joinDate: toDateKey(new Date()),
+          status: 'active',
+          role: 'employee',
+          avatarUrl: '',
+          bankName: 'Mandiri',
+          bankAccount: '124000998811',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'work_settings/default');
   }

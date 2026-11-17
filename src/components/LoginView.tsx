@@ -57,6 +57,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
     onChangePortalMode(mode);
   };
 
+  const handleQuickDemoLogin = async (demoUser: string, demoPass: string) => {
+    setAuthAction('login');
+    setIdentifier(demoUser);
+    setPassword(demoPass);
+    await onLogin(demoUser, demoPass);
+  };
+
   if (!isBackoffice) {
     return (
       <PhoneFrameShell
@@ -224,9 +231,28 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </span>
               </button>
             </form>
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-3.5 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-emerald-400">Akun Login Karyawan</p>
+                  <p className="font-mono-tabular mt-0.5 text-[11px] text-slate-300">
+                    User: <strong className="text-white">karyawan</strong> · Pass:{' '}
+                    <strong className="text-white">karyawan123</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleQuickDemoLogin('karyawan', 'karyawan123')}
+                  className="min-h-[36px] shrink-0 rounded-xl bg-white/15 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/25 disabled:opacity-60"
+                >
+                  Masuk Cepat
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="mt-6 space-y-3 border-t border-white/10 pt-4 text-xs text-slate-400">
+          <div className="mt-5 space-y-3 border-t border-white/10 pt-4 text-xs text-slate-400">
             <div className="flex items-center justify-between gap-2">
               <span>Presensi Selfie &amp; Slip Gaji</span>
               <PWAInstallButton variant="dark" />
@@ -464,6 +490,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </span>
               </button>
             </form>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-bold text-slate-900">Akun Login Administrator</p>
+                  <p className="font-mono-tabular mt-0.5 text-slate-600">
+                    Username: <strong className="text-slate-900">admin</strong> · Password:{' '}
+                    <strong className="text-slate-900">admin123</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleQuickDemoLogin('admin', 'admin123')}
+                  className="min-h-[38px] shrink-0 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 whitespace-nowrap"
+                >
+                  Masuk Cepat Admin
+                </button>
+              </div>
+            </div>
 
             <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
               <div className="flex items-center gap-2">
