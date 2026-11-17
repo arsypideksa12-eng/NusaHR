@@ -24,6 +24,7 @@ import {
 import {
   adminDeleteAttendance,
   adminUpdateAttendance,
+  applyDailyRateToAll,
   createEmployeeWithCredentials,
   deleteEmployee,
   deletePayrollRecord,
@@ -100,7 +101,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
     positionId: '',
     positionTitle: '',
     department: '',
-    dailyRate: 175000,
+    dailyRate: 30000000,
     joinDate: toDateKey(new Date()),
     status: 'active' as 'active' | 'inactive',
     role: 'employee' as 'admin' | 'employee',
@@ -115,7 +116,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
   const [posForm, setPosForm] = useState({
     title: '',
     department: '',
-    defaultDailyRate: 175000,
+    defaultDailyRate: 30000000,
     description: '',
     isActive: true,
   });
@@ -129,7 +130,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
     lateToleranceMinutes: workSetting?.lateToleranceMinutes ?? 15,
     workingDays: workSetting?.workingDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
     holidays: workSetting?.holidays || [],
-    defaultDailyRate: workSetting?.defaultDailyRate ?? 175000,
+    defaultDailyRate: workSetting?.defaultDailyRate ?? 30000000,
   });
   const [newHolidayInput, setNewHolidayInput] = useState('');
   const [savingWs, setSavingWs] = useState(false);
@@ -194,7 +195,11 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
         a.dateKey.startsWith(currentMonthKey) &&
         (a.status === 'present' || a.status === 'late')
     );
+    const seenEmployeeDates = new Set<string>();
     return monthAtts.reduce((sum, a) => {
+      const uniqueKey = `${a.employeeId}_${a.dateKey}`;
+      if (seenEmployeeDates.has(uniqueKey)) return sum;
+      seenEmployeeDates.add(uniqueKey);
       const emp = employees.find((e) => e.id === a.employeeId);
       return sum + (emp?.dailyRate ?? a.dailyRateSnapshot ?? 0);
     }, 0);
@@ -360,7 +365,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
     setPosForm({
       title: '',
       department: '',
-      defaultDailyRate: wsForm.defaultDailyRate || 175000,
+      defaultDailyRate: wsForm.defaultDailyRate || 30000000,
       description: '',
       isActive: true,
     });
@@ -442,6 +447,29 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
       );
     } catch (err) {
       showToast('err', err instanceof Error ? err.message : 'Gagal menghitung payroll.');
+    } finally {
+      setGeneratingPayroll(false);
+    }
+  };
+
+  const handleApplyThirtyMillionRate = async () => {
+    setGeneratingPayroll(true);
+    try {
+      const targetRate = 30000000;
+      await applyDailyRateToAll(targetRate, employees, positions, workSetting, currentUser.uid);
+      const updatedEmployees = employees.map((e) => ({ ...e, dailyRate: targetRate }));
+      const count = await generateMonthlyPayrolls(
+        payrollMonth,
+        updatedEmployees,
+        attendances,
+        payrolls
+      );
+      showToast(
+        'ok',
+        `Tarif Rp 30.000.000/hari diterapkan ke semua karyawan & ${count} data payroll disinkronkan.`
+      );
+    } catch (err) {
+      showToast('err', err instanceof Error ? err.message : 'Gagal menerapkan tarif harian.');
     } finally {
       setGeneratingPayroll(false);
     }
@@ -733,7 +761,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
                   <p className="text-xs font-medium text-slate-500">
                     Akumulasi Payroll {formatMonthLabel(currentMonthKey)}
                   </p>
-                  <p className="font-mono-tabular mt-2 text-2xl font-bold text-slate-900">
+                  <p className="font-mono-tabular mt-2 text-xl font-bold text-slate-900 xl:text-2xl">
                     {formatRupiah(estimatedMonthPayroll)}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">Berbasis hari masuk aktual</p>
@@ -1180,7 +1208,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
                     <input
                       type="number"
                       min={0}
-                      step={5000}
+                      step={1000}
                       required
                       value={wsForm.defaultDailyRate}
                       onChange={(e) =>
@@ -1479,6 +1507,14 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
                   <button
                     type="button"
                     disabled={generatingPayroll}
+                    onClick={handleApplyThirtyMillionRate}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 whitespace-nowrap"
+                  >
+                    <span>Set Tarif Rp 30.000.000/hari</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={generatingPayroll}
                     onClick={handleGeneratePayroll}
                     className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 whitespace-nowrap"
                   >
@@ -1515,7 +1551,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <p className="text-xs text-slate-500">Total Pengeluaran Payroll</p>
-                  <p className="font-mono-tabular mt-1 text-2xl font-bold text-slate-900">
+                  <p className="font-mono-tabular mt-1 text-xl font-bold text-slate-900 xl:text-2xl">
                     {formatRupiah(payrollMonthTotal)}
                   </p>
                 </div>
@@ -1757,7 +1793,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
                 <input
                   type="number"
                   min={0}
-                  step={5000}
+                  step={1000}
                   required
                   value={empForm.dailyRate}
                   onChange={(e) => setEmpForm({ ...empForm, dailyRate: Number(e.target.value) })}
@@ -1870,7 +1906,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
                 <input
                   type="number"
                   min={0}
-                  step={5000}
+                  step={1000}
                   required
                   value={posForm.defaultDailyRate}
                   onChange={(e) =>

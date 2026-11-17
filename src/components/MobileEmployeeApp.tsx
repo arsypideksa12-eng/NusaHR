@@ -462,7 +462,7 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
                 <p className="text-[11px] font-medium text-slate-500">Tarif Gaji Harian</p>
-                <p className="font-mono-tabular mt-1 text-base font-bold text-slate-900">
+                <p className="font-mono-tabular mt-1 text-sm font-bold text-slate-900">
                   {formatRupiah(employee.dailyRate)}
                 </p>
                 <p className="mt-0.5 text-[11px] text-slate-500">Per hari masuk</p>
@@ -547,7 +547,9 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
                           {translateAttendanceStatus(item.status)}
                         </p>
                         <p className="font-mono-tabular mt-0.5 text-[11px] text-slate-500">
-                          {formatRupiah(item.dailyRateSnapshot || employee.dailyRate)}
+                          {item.status === 'present' || item.status === 'late'
+                            ? formatRupiah(employee.dailyRate || item.dailyRateSnapshot)
+                            : formatRupiah(0)}
                         </p>
                       </div>
                     </div>
@@ -736,7 +738,7 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-xs text-slate-500">Akumulasi Gaji</p>
-                <p className="font-mono-tabular mt-1 text-lg font-bold text-emerald-700">
+                <p className="font-mono-tabular mt-1 text-base font-bold text-emerald-700">
                   {formatRupiah(reportStats.estimatedPay)}
                 </p>
               </div>

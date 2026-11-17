@@ -66,7 +66,7 @@ service cloud.firestore {
       (data.workingDays.size() == 0 || data.workingDays[0] is string) &&
       data.holidays is list && data.holidays.size() <= 60 &&
       (data.holidays.size() == 0 || data.holidays[0] is string) &&
-      data.defaultDailyRate is number && data.defaultDailyRate >= 0 && data.defaultDailyRate <= 100000000 &&
+      data.defaultDailyRate is number && data.defaultDailyRate >= 0 && data.defaultDailyRate <= 1000000000 &&
       data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
       data.updatedAt is timestamp;
     }
@@ -80,7 +80,7 @@ service cloud.firestore {
       ]) &&
       data.title is string && data.title.size() >= 1 && data.title.size() <= 80 &&
       data.department is string && data.department.size() >= 1 && data.department.size() <= 80 &&
-      data.defaultDailyRate is number && data.defaultDailyRate >= 0 && data.defaultDailyRate <= 100000000 &&
+      data.defaultDailyRate is number && data.defaultDailyRate >= 0 && data.defaultDailyRate <= 1000000000 &&
       data.description is string && data.description.size() <= 300 &&
       data.isActive is bool &&
       data.createdAt is timestamp &&
@@ -107,7 +107,7 @@ service cloud.firestore {
       data.positionId is string && data.positionId.size() <= 128 &&
       data.positionTitle is string && data.positionTitle.size() >= 1 && data.positionTitle.size() <= 80 &&
       data.department is string && data.department.size() >= 1 && data.department.size() <= 80 &&
-      data.dailyRate is number && data.dailyRate >= 0 && data.dailyRate <= 100000000 &&
+      data.dailyRate is number && data.dailyRate >= 0 && data.dailyRate <= 1000000000 &&
       data.joinDate is string && data.joinDate.size() <= 20 &&
       data.status in ['active', 'inactive'] &&
       data.role in ['admin', 'employee'] &&
@@ -146,7 +146,7 @@ service cloud.firestore {
       data.clockOutNote is string && data.clockOutNote.size() <= 200 &&
       data.status in ['present', 'late', 'absent', 'leave'] &&
       data.workMinutes is number && data.workMinutes >= 0 && data.workMinutes <= 1440 &&
-      data.dailyRateSnapshot is number && data.dailyRateSnapshot >= 0 && data.dailyRateSnapshot <= 100000000 &&
+      data.dailyRateSnapshot is number && data.dailyRateSnapshot >= 0 && data.dailyRateSnapshot <= 1000000000 &&
       data.verified is bool &&
       data.createdAt is timestamp &&
       data.updatedAt is timestamp;
@@ -177,10 +177,10 @@ service cloud.firestore {
       data.periodEnd is string && data.periodEnd.size() == 10 &&
       data.daysPresent is number && data.daysPresent >= 0 && data.daysPresent <= 31 &&
       data.daysLate is number && data.daysLate >= 0 && data.daysLate <= 31 &&
-      data.dailyRate is number && data.dailyRate >= 0 && data.dailyRate <= 100000000 &&
-      data.bonus is number && data.bonus >= 0 && data.bonus <= 100000000 &&
-      data.deduction is number && data.deduction >= 0 && data.deduction <= 100000000 &&
-      data.totalAmount is number && data.totalAmount >= 0 && data.totalAmount <= 1000000000 &&
+      data.dailyRate is number && data.dailyRate >= 0 && data.dailyRate <= 1000000000 &&
+      data.bonus is number && data.bonus >= 0 && data.bonus <= 1000000000 &&
+      data.deduction is number && data.deduction >= 0 && data.deduction <= 1000000000 &&
+      data.totalAmount is number && data.totalAmount >= 0 && data.totalAmount <= 50000000000 &&
       data.status in ['pending', 'paid'] &&
       data.paidDate is string && data.paidDate.size() <= 40 &&
       data.notes is string && data.notes.size() <= 250 &&

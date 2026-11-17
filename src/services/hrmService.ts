@@ -41,7 +41,7 @@ function clip(val: string | undefined | null, maxLen: number): string {
   return (val ?? '').trim().slice(0, maxLen);
 }
 
-function safeNum(val: number | undefined | null, min = 0, max = 100000000): number {
+function safeNum(val: number | undefined | null, min = 0, max = 1000000000): number {
   const n = Number(val);
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Math.round(n)));
@@ -89,7 +89,7 @@ export async function seedInitialWorkspaceIfNeeded(adminUser: User): Promise<voi
   try {
     const wsRef = doc(db, 'work_settings', 'default');
     const wsSnap = await getDoc(wsRef);
-    let defaultRate = 175000;
+    let defaultRate = 30000000;
 
     if (!wsSnap.exists()) {
       await setDoc(wsRef, {
@@ -99,12 +99,12 @@ export async function seedInitialWorkspaceIfNeeded(adminUser: User): Promise<voi
         lateToleranceMinutes: 15,
         workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
         holidays: [],
-        defaultDailyRate: 175000,
+        defaultDailyRate: 30000000,
         updatedBy: clip(adminUser.uid, 128),
         updatedAt: serverTimestamp(),
       });
     } else {
-      defaultRate = Number(wsSnap.data()?.defaultDailyRate ?? 175000);
+      defaultRate = Number(wsSnap.data()?.defaultDailyRate ?? 30000000);
     }
 
     const posSnap = await getDocs(query(collection(db, 'positions'), limit(1)));
@@ -120,28 +120,28 @@ export async function seedInitialWorkspaceIfNeeded(adminUser: User): Promise<voi
         {
           title: 'Software Engineer',
           department: 'Engineering',
-          defaultDailyRate: 250000,
+          defaultDailyRate: 30000000,
           description: 'Pengembangan sistem aplikasi web, mobile, dan API perusahaan.',
           isActive: true,
         },
         {
           title: 'Product Designer',
           department: 'Design',
-          defaultDailyRate: 210000,
+          defaultDailyRate: 30000000,
           description: 'Perancangan pengalaman pengguna dan antarmuka produk digital.',
           isActive: true,
         },
         {
           title: 'HR & Finance Officer',
           department: 'People & Finance',
-          defaultDailyRate: 185000,
+          defaultDailyRate: 30000000,
           description: 'Pengelolaan administrasi SDM, presensi, dan penggajian harian.',
           isActive: true,
         },
         {
           title: 'Operations Specialist',
           department: 'Operations',
-          defaultDailyRate: 165000,
+          defaultDailyRate: 30000000,
           description: 'Operasional harian lapangan dan koordinasi tim layanan.',
           isActive: true,
         },
@@ -221,7 +221,7 @@ export async function seedInitialWorkspaceIfNeeded(adminUser: User): Promise<voi
           positionId: clip(defaultPosition.id, 128),
           positionTitle: 'Product Designer',
           department: 'Design',
-          dailyRate: 210000,
+          dailyRate: 30000000,
           joinDate: toDateKey(new Date()),
           status: 'active',
           role: 'employee',
@@ -253,7 +253,7 @@ export async function ensureEmployeeProfile(
       return { id: existingDoc.id, ...(existingDoc.data() as Omit<Employee, 'id'>) };
     }
 
-    const rate = workSetting ? safeNum(workSetting.defaultDailyRate) : 0;
+    const rate = workSetting ? safeNum(workSetting.defaultDailyRate) : 30000000;
     const code = `EMP-${user.uid.slice(0, 4).toUpperCase()}`;
     const loginEmail = user.email || `${user.uid}@nusahr.id`;
     const payload = {
@@ -583,6 +583,9 @@ export async function generateMonthlyPayrolls(
           daysLate,
           dailyRate,
           totalAmount,
+          notes: existing.notes?.startsWith('Perhitungan otomatis')
+            ? `Perhitungan otomatis ${daysPresent} hari masuk × Rp ${dailyRate.toLocaleString('id-ID')}/hari`
+            : clip(existing.notes, 250),
           updatedAt: serverTimestamp(),
         });
         count++;
@@ -652,5 +655,47 @@ export async function deletePayrollRecord(id: string): Promise<void> {
     await deleteDoc(doc(db, 'payrolls', id));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function applyDailyRateToAll(
+  rate: number,
+  employees: Employee[],
+  positions: Position[],
+  workSetting: WorkSetting | null,
+  adminUid: string
+): Promise<void> {
+  const sanitizedRate = safeNum(rate);
+  try {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'work_settings', 'default'), {
+      companyName: clip(workSetting?.companyName, 100) || 'PT Nusa Digital Karya',
+      workStartTime: clip(workSetting?.workStartTime, 5) || '08:00',
+      workEndTime: clip(workSetting?.workEndTime, 5) || '17:00',
+      lateToleranceMinutes: safeNum(workSetting?.lateToleranceMinutes ?? 15, 0, 180),
+      workingDays: (workSetting?.workingDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']).slice(0, 7),
+      holidays: (workSetting?.holidays || []).slice(0, 60),
+      defaultDailyRate: sanitizedRate,
+      updatedBy: clip(adminUid, 128),
+      updatedAt: serverTimestamp(),
+    });
+
+    for (const pos of positions) {
+      batch.update(doc(db, 'positions', pos.id), {
+        defaultDailyRate: sanitizedRate,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    for (const emp of employees) {
+      batch.update(doc(db, 'employees', emp.id), {
+        dailyRate: sanitizedRate,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'employees');
   }
 }
