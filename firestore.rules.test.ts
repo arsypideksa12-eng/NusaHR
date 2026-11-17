@@ -1,0 +1,98 @@
+/**
+ * Firestore Security Rules Verification Suite (Dirty Dozen Adversarial Payloads)
+ * Documents expected PERMISSION_DENIED payloads verified against firestore.rules.
+ */
+export const DIRTY_DOZEN_PAYLOADS = [
+  {
+    name: '01_unverified_admin_email_spoof',
+    auth: { uid: 'spoof_uid', token: { email: 'pideksaarsy1206@gmail.com', email_verified: false } },
+    op: 'write',
+    path: '/work_settings/default',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '02_self_admin_role_escalation',
+    auth: { uid: 'emp_uid', token: { email: 'budi@company.com', email_verified: true } },
+    op: 'create',
+    path: '/employees/emp_hack',
+    data: { role: 'admin', userId: 'emp_uid', email: 'budi@company.com' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '03_cross_employee_pii_read',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'get',
+    path: '/employees/emp_b',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '04_shadow_field_injection',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'create',
+    path: '/employees/emp_a',
+    data: { isSuperAdmin: true },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '05_orphan_attendance_write',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'create',
+    path: '/attendances/att_orphan',
+    data: { employeeId: 'non_existent_id', userId: 'emp_a' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '06_attendance_identity_spoof',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'create',
+    path: '/attendances/att_spoof',
+    data: { userId: 'emp_b_uid', employeeEmail: 'b@company.com' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '07_clockout_tampering_after_terminal_lock',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'update',
+    path: '/attendances/att_closed',
+    data: { clockOutTime: '2026-11-16T18:00:00Z' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '08_client_timestamp_forgery',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'create',
+    path: '/attendances/att_time',
+    data: { createdAt: new Date('2020-01-01T00:00:00Z') },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '09_oversized_id_poisoning',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'create',
+    path: `/attendances/${'x'.repeat(200)}`,
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '10_payroll_forgery_by_employee',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'update',
+    path: '/payrolls/pay_1',
+    data: { status: 'paid', totalAmount: 99999999 },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '11_work_settings_tampering',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'update',
+    path: '/work_settings/default',
+    data: { lateToleranceMinutes: 999 },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '12_blanket_attendance_list',
+    auth: { uid: 'emp_a', token: { email: 'a@company.com', email_verified: true } },
+    op: 'list',
+    path: '/attendances',
+    expected: 'PERMISSION_DENIED',
+  },
+];

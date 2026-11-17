@@ -1,0 +1,6 @@
+{
+  "name": "NusaHR",
+  "description": "Sistem Manajemen SDM terpadu dengan Panel Backoffice Manajemen dan Mobile PWA Karyawan berbasis database online real-time.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

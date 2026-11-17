@@ -1,0 +1,241 @@
+{
+  "entities": {
+    "AdminMeta": {
+      "title": "AdminMeta",
+      "description": "One-time bootstrap lock tracking initial administrator setup",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "createdAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized HR backoffice administrator",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 160 },
+        "name": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "name", "createdAt"]
+    },
+    "WorkSetting": {
+      "title": "WorkSetting",
+      "description": "Company-wide working days, standard hours, late tolerance, and holidays",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string", "maxLength": 100 },
+        "workStartTime": { "type": "string", "maxLength": 5, "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" },
+        "workEndTime": { "type": "string", "maxLength": 5, "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" },
+        "lateToleranceMinutes": { "type": "number" },
+        "workingDays": { "type": "array" },
+        "holidays": { "type": "array" },
+        "defaultDailyRate": { "type": "number" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "companyName",
+        "workStartTime",
+        "workEndTime",
+        "lateToleranceMinutes",
+        "workingDays",
+        "holidays",
+        "defaultDailyRate",
+        "updatedBy",
+        "updatedAt"
+      ]
+    },
+    "Position": {
+      "title": "Position",
+      "description": "Job title, department, and default daily salary rate",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 80 },
+        "department": { "type": "string", "maxLength": 80 },
+        "defaultDailyRate": { "type": "number" },
+        "description": { "type": "string", "maxLength": 300 },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "department", "defaultDailyRate", "description", "isActive", "createdAt", "updatedAt"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Employee master profile, position, daily pay rate, and bank info",
+      "type": "object",
+      "properties": {
+        "employeeCode": { "type": "string", "maxLength": 32 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "address": { "type": "string", "maxLength": 250 },
+        "positionId": { "type": "string", "maxLength": 128 },
+        "positionTitle": { "type": "string", "maxLength": 80 },
+        "department": { "type": "string", "maxLength": 80 },
+        "dailyRate": { "type": "number" },
+        "joinDate": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "role": { "type": "string", "enum": ["admin", "employee"] },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "bankName": { "type": "string", "maxLength": 60 },
+        "bankAccount": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "employeeCode",
+        "userId",
+        "name",
+        "email",
+        "phone",
+        "address",
+        "positionId",
+        "positionTitle",
+        "department",
+        "dailyRate",
+        "joinDate",
+        "status",
+        "role",
+        "avatarUrl",
+        "bankName",
+        "bankAccount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily employee clock-in/clock-out record with selfie captures",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "employeeName": { "type": "string", "maxLength": 100 },
+        "employeeEmail": { "type": "string", "maxLength": 160 },
+        "employeeCode": { "type": "string", "maxLength": 32 },
+        "positionTitle": { "type": "string", "maxLength": 80 },
+        "dateKey": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "clockInTime": { "type": "string", "maxLength": 40 },
+        "clockOutTime": { "type": "string", "maxLength": 40 },
+        "clockInPhoto": { "type": "string", "maxLength": 180000 },
+        "clockOutPhoto": { "type": "string", "maxLength": 180000 },
+        "clockInNote": { "type": "string", "maxLength": 200 },
+        "clockOutNote": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["present", "late", "absent", "leave"] },
+        "workMinutes": { "type": "number" },
+        "dailyRateSnapshot": { "type": "number" },
+        "verified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "employeeId",
+        "userId",
+        "employeeName",
+        "employeeEmail",
+        "employeeCode",
+        "positionTitle",
+        "dateKey",
+        "clockInTime",
+        "clockOutTime",
+        "clockInPhoto",
+        "clockOutPhoto",
+        "clockInNote",
+        "clockOutNote",
+        "status",
+        "workMinutes",
+        "dailyRateSnapshot",
+        "verified",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Payroll": {
+      "title": "Payroll",
+      "description": "Daily-rate payroll calculation per employee and period",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "employeeEmail": { "type": "string", "maxLength": 160 },
+        "employeeName": { "type": "string", "maxLength": 100 },
+        "employeeCode": { "type": "string", "maxLength": 32 },
+        "positionTitle": { "type": "string", "maxLength": 80 },
+        "periodKey": { "type": "string", "maxLength": 20 },
+        "periodLabel": { "type": "string", "maxLength": 60 },
+        "periodStart": { "type": "string", "maxLength": 10 },
+        "periodEnd": { "type": "string", "maxLength": 10 },
+        "daysPresent": { "type": "number" },
+        "daysLate": { "type": "number" },
+        "dailyRate": { "type": "number" },
+        "bonus": { "type": "number" },
+        "deduction": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "paid"] },
+        "paidDate": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 250 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "employeeId",
+        "userId",
+        "employeeEmail",
+        "employeeName",
+        "employeeCode",
+        "positionTitle",
+        "periodKey",
+        "periodLabel",
+        "periodStart",
+        "periodEnd",
+        "daysPresent",
+        "daysLate",
+        "dailyRate",
+        "bonus",
+        "deduction",
+        "totalAmount",
+        "status",
+        "paidDate",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins_meta/{docId}": {
+      "schema": { "$ref": "#/entities/AdminMeta" },
+      "description": "Tracks one-time initialization of the primary administrator account"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Stores authorized backoffice administrator accounts"
+    },
+    "/work_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/WorkSetting" },
+      "description": "Stores company working days, hours, late tolerance, and holiday calendar"
+    },
+    "/positions/{positionId}": {
+      "schema": { "$ref": "#/entities/Position" },
+      "description": "Stores job titles, departments, and default daily rates"
+    },
+    "/employees/{employeeId}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Stores employee biodata, position assignment, and daily pay rate"
+    },
+    "/attendances/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Stores clock-in/clock-out attendance logs with selfie photos"
+    },
+    "/payrolls/{payrollId}": {
+      "schema": { "$ref": "#/entities/Payroll" },
+      "description": "Stores calculated daily-rate payroll disbursements"
+    }
+  }
+}
