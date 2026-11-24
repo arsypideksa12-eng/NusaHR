@@ -206,6 +206,49 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Employee leave request and backoffice approval state",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "employeeName": { "type": "string", "maxLength": 100 },
+        "employeeEmail": { "type": "string", "maxLength": 160 },
+        "employeeCode": { "type": "string", "maxLength": 32 },
+        "positionTitle": { "type": "string", "maxLength": 80 },
+        "leaveType": { "type": "string", "enum": ["annual", "sick", "permit", "maternity"] },
+        "startDate": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "endDate": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "totalDays": { "type": "number" },
+        "reason": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "reviewerNote": { "type": "string", "maxLength": 250 },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "reviewedAt": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "employeeId",
+        "userId",
+        "employeeName",
+        "employeeEmail",
+        "employeeCode",
+        "positionTitle",
+        "leaveType",
+        "startDate",
+        "endDate",
+        "totalDays",
+        "reason",
+        "status",
+        "reviewerNote",
+        "reviewedBy",
+        "reviewedAt",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -236,6 +279,10 @@
     "/payrolls/{payrollId}": {
       "schema": { "$ref": "#/entities/Payroll" },
       "description": "Stores calculated daily-rate payroll disbursements"
+    },
+    "/leave_requests/{leaveId}": {
+      "schema": { "$ref": "#/entities/LeaveRequest" },
+      "description": "Stores employee leave applications and admin approval status"
     }
   }
 }

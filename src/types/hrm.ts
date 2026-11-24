@@ -1,11 +1,13 @@
 export type AppPortalMode = 'employee' | 'backoffice';
-export type MobileTab = 'beranda' | 'presensi' | 'laporan' | 'profil';
-export type AdminTab = 'ringkasan' | 'karyawan' | 'jadwal' | 'kehadiran' | 'payroll';
+export type MobileTab = 'beranda' | 'presensi' | 'cuti' | 'laporan' | 'profil';
+export type AdminTab = 'ringkasan' | 'karyawan' | 'jadwal' | 'kehadiran' | 'cuti' | 'payroll';
 
 export type EmployeeStatus = 'active' | 'inactive';
 export type EmployeeRole = 'admin' | 'employee';
 export type AttendanceStatus = 'present' | 'late' | 'absent' | 'leave';
 export type PayrollStatus = 'pending' | 'paid';
+export type LeaveType = 'annual' | 'sick' | 'permit' | 'maternity';
+export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 
 export interface WorkSetting {
   id: string;
@@ -97,6 +99,27 @@ export interface Payroll {
   status: PayrollStatus;
   paidDate: string; // YYYY-MM-DD or ''
   notes: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  userId: string;
+  employeeName: string;
+  employeeEmail: string;
+  employeeCode: string;
+  positionTitle: string;
+  leaveType: LeaveType;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  totalDays: number;
+  reason: string;
+  status: LeaveStatus;
+  reviewerNote: string;
+  reviewedBy: string;
+  reviewedAt: string; // ISO string or ''
   createdAt?: unknown;
   updatedAt?: unknown;
 }

@@ -24,12 +24,15 @@ import {
   Attendance,
   AttendanceStatus,
   Employee,
+  LeaveStatus,
+  LeaveType,
   Payroll,
   PayrollStatus,
   Position,
   WorkSetting,
 } from '../types/hrm';
 import {
+  calculateInclusiveDays,
   evaluateClockInStatus,
   formatMonthLabel,
   getMonthRange,
@@ -697,5 +700,78 @@ export async function applyDailyRateToAll(
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'employees');
+  }
+}
+
+export async function submitLeaveRequest(
+  employee: Employee,
+  input: {
+    leaveType: LeaveType;
+    startDate: string;
+    endDate: string;
+    reason: string;
+  }
+): Promise<void> {
+  const path = 'leave_requests';
+  const totalDays = calculateInclusiveDays(input.startDate, input.endDate);
+  if (totalDays < 1 || totalDays > 60) {
+    throw new Error('Rentang tanggal cuti tidak valid (minimal 1 hari, maksimal 60 hari).');
+  }
+  const cleanReason = clip(input.reason, 300);
+  if (!cleanReason) {
+    throw new Error('Alasan pengajuan cuti wajib diisi.');
+  }
+
+  try {
+    await addDoc(collection(db, path), {
+      employeeId: clip(employee.id, 128),
+      userId: clip(employee.userId, 128),
+      employeeName: clip(employee.name, 100),
+      employeeEmail: clip(employee.email, 160),
+      employeeCode: clip(employee.employeeCode, 32),
+      positionTitle: clip(employee.positionTitle, 80),
+      leaveType: input.leaveType,
+      startDate: clip(input.startDate, 10),
+      endDate: clip(input.endDate, 10),
+      totalDays,
+      reason: cleanReason,
+      status: 'pending' as LeaveStatus,
+      reviewerNote: '',
+      reviewedBy: '',
+      reviewedAt: '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function reviewLeaveRequest(
+  leaveId: string,
+  status: 'approved' | 'rejected',
+  reviewerNote: string,
+  adminUid: string
+): Promise<void> {
+  const path = `leave_requests/${leaveId}`;
+  try {
+    await updateDoc(doc(db, 'leave_requests', leaveId), {
+      status,
+      reviewerNote: clip(reviewerNote, 250),
+      reviewedBy: clip(adminUid, 128),
+      reviewedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteLeaveRequest(leaveId: string): Promise<void> {
+  const path = `leave_requests/${leaveId}`;
+  try {
+    await deleteDoc(doc(db, 'leave_requests', leaveId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }

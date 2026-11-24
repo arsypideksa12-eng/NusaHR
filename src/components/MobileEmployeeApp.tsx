@@ -3,13 +3,16 @@ import {
   ArrowLeftRight,
   BarChart3,
   CalendarDays,
+  CalendarOff,
   Camera,
   CheckCircle2,
   Clock,
   Edit3,
   Home,
   LogOut,
+  Plus,
   Save,
+  Trash2,
   User as UserIcon,
   Wallet,
   X,
@@ -17,16 +20,21 @@ import {
 import {
   clockInEmployee,
   clockOutEmployee,
+  deleteLeaveRequest,
+  submitLeaveRequest,
   updateOwnProfile,
 } from '../services/hrmService';
 import {
   Attendance,
   Employee,
+  LeaveRequest,
+  LeaveType,
   MobileTab,
   Payroll,
   WorkSetting,
 } from '../types/hrm';
 import {
+  calculateInclusiveDays,
   formatDateDDMMMYYYY,
   formatDuration,
   formatLoginDisplay,
@@ -37,6 +45,8 @@ import {
   getMonthKey,
   toDateKey,
   translateAttendanceStatus,
+  translateLeaveStatus,
+  translateLeaveType,
 } from '../utils/formatters';
 import { PhoneFrameShell } from './PhoneFrameShell';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -47,6 +57,7 @@ interface MobileEmployeeAppProps {
   workSetting: WorkSetting | null;
   attendances: Attendance[];
   payrolls: Payroll[];
+  leaveRequests: LeaveRequest[];
   isAdmin: boolean;
   onSwitchToBackoffice: () => void;
   onLogout: () => Promise<void>;
@@ -57,6 +68,7 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
   workSetting,
   attendances,
   payrolls,
+  leaveRequests,
   isAdmin,
   onSwitchToBackoffice,
   onLogout,
@@ -81,6 +93,14 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
   const [bankNameInput, setBankNameInput] = useState(employee.bankName || '');
   const [bankAccountInput, setBankAccountInput] = useState(employee.bankAccount || '');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Leave request state
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [leaveTypeInput, setLeaveTypeInput] = useState<LeaveType>('annual');
+  const [leaveStartInput, setLeaveStartInput] = useState(() => toDateKey(new Date()));
+  const [leaveEndInput, setLeaveEndInput] = useState(() => toDateKey(new Date()));
+  const [leaveReasonInput, setLeaveReasonInput] = useState('');
+  const [submittingLeave, setSubmittingLeave] = useState(false);
 
   useEffect(() => {
     setPhoneInput(employee.phone || '');
@@ -205,6 +225,64 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
       showNotice('err', err instanceof Error ? err.message : 'Gagal memperbarui profil.');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const sortedLeaveRequests = useMemo(() => {
+    return [...leaveRequests].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  }, [leaveRequests]);
+
+  const leaveSummary = useMemo(() => {
+    const currentYear = String(now.getFullYear());
+    const usedAnnual = leaveRequests
+      .filter(
+        (l) =>
+          l.status === 'approved' &&
+          l.leaveType === 'annual' &&
+          l.startDate.startsWith(currentYear)
+      )
+      .reduce((sum, l) => sum + (l.totalDays || 0), 0);
+    const pendingCount = leaveRequests.filter((l) => l.status === 'pending').length;
+    const annualQuota = 12;
+    return {
+      annualQuota,
+      usedAnnual,
+      remainingAnnual: Math.max(0, annualQuota - usedAnnual),
+      pendingCount,
+    };
+  }, [leaveRequests, now]);
+
+  const leavePreviewDays = useMemo(
+    () => calculateInclusiveDays(leaveStartInput, leaveEndInput),
+    [leaveStartInput, leaveEndInput]
+  );
+
+  const handleSubmitLeave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingLeave(true);
+    try {
+      await submitLeaveRequest(employee, {
+        leaveType: leaveTypeInput,
+        startDate: leaveStartInput,
+        endDate: leaveEndInput,
+        reason: leaveReasonInput,
+      });
+      setLeaveReasonInput('');
+      setShowLeaveForm(false);
+      showNotice('ok', 'Pengajuan cuti berhasil dikirim ke HR.');
+    } catch (err) {
+      showNotice('err', err instanceof Error ? err.message : 'Gagal mengirim pengajuan cuti.');
+    } finally {
+      setSubmittingLeave(false);
+    }
+  };
+
+  const handleCancelLeave = async (leaveId: string) => {
+    try {
+      await deleteLeaveRequest(leaveId);
+      showNotice('ok', 'Pengajuan cuti dibatalkan.');
+    } catch (err) {
+      showNotice('err', err instanceof Error ? err.message : 'Gagal membatalkan pengajuan cuti.');
     }
   };
 
@@ -695,6 +773,204 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
           </div>
         )}
 
+        {/* TAB 3: CUTI */}
+        {activeTab === 'cuti' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h1 className="text-lg font-bold text-slate-900">Pengajuan Cuti</h1>
+                <p className="text-xs text-slate-500">Kuota tahunan &amp; status persetujuan</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLeaveForm((prev) => !prev)}
+                className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 whitespace-nowrap"
+              >
+                {showLeaveForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                <span>{showLeaveForm ? 'Tutup' : 'Ajukan Cuti'}</span>
+              </button>
+            </div>
+
+            {/* Quota Summary Card */}
+            <section className="rounded-3xl bg-[#0B1215] p-5 text-white">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">
+                  Sisa Kuota Cuti Tahunan ({now.getFullYear()})
+                </span>
+                <CalendarOff className="h-4 w-4 text-emerald-400" />
+              </div>
+              <p className="font-mono-tabular mt-1.5 text-2xl font-bold">
+                {leaveSummary.remainingAnnual} hari{' '}
+                <span className="text-xs font-normal text-slate-400">
+                  / {leaveSummary.annualQuota} hari
+                </span>
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-3 text-xs">
+                <div>
+                  <p className="text-slate-400">Terpakai (Disetujui)</p>
+                  <p className="font-mono-tabular mt-0.5 font-bold text-white">
+                    {leaveSummary.usedAnnual} hari
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-400">Menunggu Persetujuan</p>
+                  <p className="font-mono-tabular mt-0.5 font-bold text-amber-400">
+                    {leaveSummary.pendingCount} pengajuan
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Leave Request Form */}
+            {showLeaveForm && (
+              <form
+                onSubmit={handleSubmitLeave}
+                className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3.5"
+              >
+                <h2 className="text-sm font-bold text-slate-900">Formulir Pengajuan Cuti</h2>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700">Jenis Cuti</label>
+                  <select
+                    value={leaveTypeInput}
+                    onChange={(e) => setLeaveTypeInput(e.target.value as LeaveType)}
+                    className="mt-1 min-h-[42px] w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none"
+                  >
+                    <option value="annual">Cuti Tahunan</option>
+                    <option value="sick">Cuti Sakit</option>
+                    <option value="permit">Izin Khusus</option>
+                    <option value="maternity">Cuti Melahirkan</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Tanggal Mulai
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={leaveStartInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLeaveStartInput(val);
+                        if (val > leaveEndInput) setLeaveEndInput(val);
+                      }}
+                      className="font-mono-tabular mt-1 min-h-[42px] w-full rounded-xl border border-slate-200 px-3 text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Tanggal Selesai
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      min={leaveStartInput}
+                      value={leaveEndInput}
+                      onChange={(e) => setLeaveEndInput(e.target.value)}
+                      className="font-mono-tabular mt-1 min-h-[42px] w-full rounded-xl border border-slate-200 px-3 text-xs text-slate-900 focus:border-emerald-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                  <span className="text-slate-600">
+                    {formatDateDDMMMYYYY(leaveStartInput)} – {formatDateDDMMMYYYY(leaveEndInput)}
+                  </span>
+                  <span className="font-mono-tabular font-bold text-slate-900">
+                    {leavePreviewDays} hari
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700">Alasan Cuti</label>
+                  <textarea
+                    rows={3}
+                    required
+                    maxLength={300}
+                    value={leaveReasonInput}
+                    onChange={(e) => setLeaveReasonInput(e.target.value)}
+                    placeholder="Tuliskan keterangan keperluan cuti..."
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submittingLeave || leavePreviewDays < 1}
+                  className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <span>{submittingLeave ? 'Mengirim...' : 'Kirim Pengajuan Cuti'}</span>
+                </button>
+              </form>
+            )}
+
+            {/* Leave Requests List */}
+            {sortedLeaveRequests.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+                <CalendarOff className="mx-auto h-9 w-9 text-slate-300" />
+                <p className="mt-3 text-sm font-bold text-slate-800">
+                  Belum ada riwayat pengajuan cuti
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Tekan tombol &ldquo;Ajukan Cuti&rdquo; untuk membuat permohonan baru.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sortedLeaveRequests.map((item) => (
+                  <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">
+                          {translateLeaveType(item.leaveType)}
+                        </p>
+                        <p className="font-mono-tabular mt-0.5 text-xs text-slate-500">
+                          {formatDateDDMMMYYYY(item.startDate)} – {formatDateDDMMMYYYY(item.endDate)}{' '}
+                          <span aria-hidden="true">·</span> {item.totalDays} hari
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-xs font-bold ${
+                          item.status === 'approved'
+                            ? 'text-emerald-700'
+                            : item.status === 'rejected'
+                              ? 'text-red-600'
+                              : 'text-amber-600'
+                        }`}
+                      >
+                        {translateLeaveStatus(item.status)}
+                      </span>
+                    </div>
+
+                    <p className="mt-2.5 text-xs leading-relaxed text-slate-700">{item.reason}</p>
+
+                    {item.reviewerNote && (
+                      <p className="mt-2 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                        Catatan HR: {item.reviewerNote}
+                      </p>
+                    )}
+
+                    {item.status === 'pending' && (
+                      <div className="mt-3 flex justify-end border-t border-slate-100 pt-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleCancelLeave(item.id)}
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Batalkan</span>
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* TAB 3: LAPORAN */}
         {activeTab === 'laporan' && (
           <div className="space-y-4">
@@ -986,12 +1262,13 @@ export const MobileEmployeeApp: React.FC<MobileEmployeeAppProps> = ({
       {/* Phone Bottom Tab Bar (Inside phone shell) */}
       <nav
         aria-label="Navigasi Mobile Karyawan"
-        className="grid h-16 shrink-0 grid-cols-4 items-center border-t border-slate-200 bg-white pb-safe"
+        className="grid h-16 shrink-0 grid-cols-5 items-center border-t border-slate-200 bg-white pb-safe"
       >
         {(
           [
             { id: 'beranda', label: 'Beranda', icon: Home },
             { id: 'presensi', label: 'Presensi', icon: Camera },
+            { id: 'cuti', label: 'Cuti', icon: CalendarOff },
             { id: 'laporan', label: 'Laporan', icon: BarChart3 },
             { id: 'profil', label: 'Profil', icon: UserIcon },
           ] as const

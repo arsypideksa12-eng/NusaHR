@@ -142,3 +142,43 @@ export function formatLoginDisplay(email: string | null | undefined): string {
   return email;
 }
 
+export function calculateInclusiveDays(startDate: string, endDate: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return 0;
+  }
+  const [sy, sm, sd] = startDate.split('-').map(Number);
+  const [ey, em, ed] = endDate.split('-').map(Number);
+  const startMs = Date.UTC(sy, sm - 1, sd);
+  const endMs = Date.UTC(ey, em - 1, ed);
+  if (endMs < startMs) return 0;
+  return Math.floor((endMs - startMs) / 86400000) + 1;
+}
+
+export function translateLeaveType(type: string): string {
+  switch (type) {
+    case 'annual':
+      return 'Cuti Tahunan';
+    case 'sick':
+      return 'Cuti Sakit';
+    case 'permit':
+      return 'Izin Khusus';
+    case 'maternity':
+      return 'Cuti Melahirkan';
+    default:
+      return type;
+  }
+}
+
+export function translateLeaveStatus(status: string): string {
+  switch (status) {
+    case 'pending':
+      return 'Menunggu';
+    case 'approved':
+      return 'Disetujui';
+    case 'rejected':
+      return 'Ditolak';
+    default:
+      return status;
+  }
+}
+

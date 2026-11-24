@@ -3,6 +3,7 @@ import { User } from 'firebase/auth';
 import {
   Briefcase,
   CalendarClock,
+  CalendarOff,
   Camera,
   Check,
   CheckCircle2,
@@ -27,9 +28,11 @@ import {
   applyDailyRateToAll,
   createEmployeeWithCredentials,
   deleteEmployee,
+  deleteLeaveRequest,
   deletePayrollRecord,
   deletePosition,
   generateMonthlyPayrolls,
+  reviewLeaveRequest,
   saveWorkSettings,
   updatePayrollRecord,
   upsertEmployee,
@@ -40,6 +43,7 @@ import {
   Attendance,
   AttendanceStatus,
   Employee,
+  LeaveRequest,
   Payroll,
   Position,
   WorkSetting,
@@ -55,6 +59,8 @@ import {
   getMonthKey,
   toDateKey,
   translateAttendanceStatus,
+  translateLeaveStatus,
+  translateLeaveType,
   WORKING_DAY_OPTIONS,
 } from '../utils/formatters';
 
@@ -65,6 +71,7 @@ interface BackofficeAppProps {
   employees: Employee[];
   attendances: Attendance[];
   payrolls: Payroll[];
+  leaveRequests: LeaveRequest[];
   onSwitchToEmployeeApp: () => void;
   onLogout: () => Promise<void>;
 }
@@ -76,6 +83,7 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
   employees,
   attendances,
   payrolls,
+  leaveRequests,
   onSwitchToEmployeeApp,
   onLogout,
 }) => {
@@ -165,6 +173,13 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
     notes: '',
   });
 
+  // Leave Request Filter & Review Modal State
+  const [leaveStatusFilter, setLeaveStatusFilter] = useState<string>('all');
+  const [leaveSearch, setLeaveSearch] = useState<string>('');
+  const [reviewingLeave, setReviewingLeave] = useState<LeaveRequest | null>(null);
+  const [reviewerNoteInput, setReviewerNoteInput] = useState<string>('');
+  const [savingLeaveReview, setSavingLeaveReview] = useState<boolean>(false);
+
   const showToast = (type: 'ok' | 'err', text: string) => {
     setNotice({ type, text });
     setTimeout(() => setNotice(null), 4500);
@@ -250,6 +265,27 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
   const payrollMonthTotal = useMemo(() => {
     return filteredPayrolls.reduce((s, p) => s + (p.totalAmount || 0), 0);
   }, [filteredPayrolls]);
+
+  const filteredLeaveRequests = useMemo(() => {
+    return leaveRequests
+      .filter((l) => {
+        if (leaveStatusFilter !== 'all' && l.status !== leaveStatusFilter) return false;
+        const q = leaveSearch.trim().toLowerCase();
+        if (!q) return true;
+        return (
+          l.employeeName.toLowerCase().includes(q) ||
+          l.employeeCode.toLowerCase().includes(q) ||
+          l.positionTitle.toLowerCase().includes(q) ||
+          l.reason.toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  }, [leaveRequests, leaveStatusFilter, leaveSearch]);
+
+  const pendingLeaveCount = useMemo(
+    () => leaveRequests.filter((l) => l.status === 'pending').length,
+    [leaveRequests]
+  );
 
   // Handlers
   const openAddEmployee = () => {
@@ -513,11 +549,49 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
     );
   };
 
+  const handleExportLeaveRequests = () => {
+    downloadCSV(
+      `cuti-karyawan-${toDateKey(new Date())}.csv`,
+      ['Kode', 'Nama', 'Jabatan', 'Jenis Cuti', 'Tgl Mulai', 'Tgl Selesai', 'Durasi (Hari)', 'Alasan', 'Status', 'Catatan HR'],
+      filteredLeaveRequests.map((l) => [
+        l.employeeCode,
+        l.employeeName,
+        l.positionTitle,
+        translateLeaveType(l.leaveType),
+        formatDateDDMMMYYYY(l.startDate),
+        formatDateDDMMMYYYY(l.endDate),
+        l.totalDays,
+        l.reason,
+        translateLeaveStatus(l.status),
+        l.reviewerNote || '-',
+      ])
+    );
+  };
+
+  const handleReviewLeave = async (status: 'approved' | 'rejected') => {
+    if (!reviewingLeave) return;
+    setSavingLeaveReview(true);
+    try {
+      await reviewLeaveRequest(reviewingLeave.id, status, reviewerNoteInput, currentUser.uid);
+      setReviewingLeave(null);
+      setReviewerNoteInput('');
+      showToast(
+        'ok',
+        `Pengajuan cuti ${reviewingLeave.employeeName} ${status === 'approved' ? 'disetujui' : 'ditolak'}.`
+      );
+    } catch (err) {
+      showToast('err', err instanceof Error ? err.message : 'Gagal memproses pengajuan cuti.');
+    } finally {
+      setSavingLeaveReview(false);
+    }
+  };
+
   const navItems: { id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'ringkasan', label: 'Ringkasan', icon: LayoutDashboard },
     { id: 'karyawan', label: 'Karyawan & Jabatan', icon: Users },
     { id: 'jadwal', label: 'Hari & Jam Kerja', icon: CalendarClock },
     { id: 'kehadiran', label: 'Data Kehadiran', icon: ClipboardCheck },
+    { id: 'cuti', label: pendingLeaveCount > 0 ? `Pengajuan Cuti (${pendingLeaveCount})` : 'Pengajuan Cuti', icon: CalendarOff },
     { id: 'payroll', label: 'Payroll Harian', icon: Wallet },
   ];
 
@@ -1483,6 +1557,166 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
             </div>
           )}
 
+          {/* TAB 5: PENGAJUAN CUTI */}
+          {activeTab === 'cuti' && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={leaveSearch}
+                      onChange={(e) => setLeaveSearch(e.target.value)}
+                      placeholder="Cari nama, kode, alasan..."
+                      className="min-h-[40px] rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs focus:border-emerald-600 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <select
+                    value={leaveStatusFilter}
+                    onChange={(e) => setLeaveStatusFilter(e.target.value)}
+                    className="min-h-[40px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700"
+                  >
+                    <option value="all">Semua Status</option>
+                    <option value="pending">Menunggu</option>
+                    <option value="approved">Disetujui</option>
+                    <option value="rejected">Ditolak</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleExportLeaveRequests}
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Ekspor CSV</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Menunggu Persetujuan</p>
+                  <p className="font-mono-tabular mt-1 text-2xl font-bold text-amber-600">
+                    {pendingLeaveCount} pengajuan
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Disetujui</p>
+                  <p className="font-mono-tabular mt-1 text-2xl font-bold text-emerald-700">
+                    {leaveRequests.filter((l) => l.status === 'approved').length} pengajuan
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Total Hari Cuti Disetujui</p>
+                  <p className="font-mono-tabular mt-1 text-2xl font-bold text-slate-900">
+                    {leaveRequests
+                      .filter((l) => l.status === 'approved')
+                      .reduce((sum, l) => sum + (l.totalDays || 0), 0)}{' '}
+                    hari
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white">
+                {filteredLeaveRequests.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <CalendarOff className="mx-auto h-10 w-10 text-slate-300" />
+                    <p className="mt-3 text-sm font-bold text-slate-800">
+                      Belum ada pengajuan cuti karyawan
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Pengajuan cuti dari Mobile PWA Karyawan akan muncul di sini secara real-time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                          <th className="px-4 py-3 font-semibold">Karyawan</th>
+                          <th className="px-4 py-3 font-semibold">Jenis Cuti</th>
+                          <th className="px-4 py-3 font-semibold">Tanggal Cuti</th>
+                          <th className="px-4 py-3 text-right font-semibold">Durasi</th>
+                          <th className="px-4 py-3 font-semibold">Alasan</th>
+                          <th className="px-4 py-3 font-semibold">Status</th>
+                          <th className="px-4 py-3 text-right font-semibold">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredLeaveRequests.map((l) => (
+                          <tr key={l.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3">
+                              <p className="font-bold text-slate-900">{l.employeeName}</p>
+                              <p className="text-[11px] text-slate-500">
+                                {l.employeeCode} · {l.positionTitle}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                              {translateLeaveType(l.leaveType)}
+                            </td>
+                            <td className="font-mono-tabular px-4 py-3 text-slate-700 whitespace-nowrap">
+                              {formatDateDDMMMYYYY(l.startDate)} – {formatDateDDMMMYYYY(l.endDate)}
+                            </td>
+                            <td className="font-mono-tabular px-4 py-3 text-right font-bold text-slate-900 whitespace-nowrap">
+                              {l.totalDays} hari
+                            </td>
+                            <td className="max-w-xs px-4 py-3 text-slate-600">
+                              <p className="line-clamp-2">{l.reason}</p>
+                              {l.reviewerNote && (
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                  HR: {l.reviewerNote}
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span
+                                className={`font-bold ${
+                                  l.status === 'approved'
+                                    ? 'text-emerald-700'
+                                    : l.status === 'rejected'
+                                      ? 'text-red-600'
+                                      : 'text-amber-600'
+                                }`}
+                              >
+                                {translateLeaveStatus(l.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReviewingLeave(l);
+                                    setReviewerNoteInput(l.reviewerNote || '');
+                                  }}
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-800 hover:bg-slate-50"
+                                >
+                                  {l.status === 'pending' ? 'Proses' : 'Ubah'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await deleteLeaveRequest(l.id);
+                                    showToast('ok', 'Data pengajuan cuti dihapus.');
+                                  }}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
+                                  aria-label="Hapus pengajuan cuti"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAB 5: PAYROLL HARIAN */}
           {activeTab === 'payroll' && (
             <div className="space-y-5">
@@ -2167,6 +2401,73 @@ export const BackofficeApp: React.FC<BackofficeAppProps> = ({
                 className="min-h-[42px] rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white hover:bg-slate-800"
               >
                 Simpan Perubahan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REVIEW LEAVE REQUEST */}
+      {reviewingLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Proses Pengajuan Cuti — {reviewingLeave.employeeName}
+                </h3>
+                <p className="font-mono-tabular mt-0.5 text-xs text-slate-500">
+                  {translateLeaveType(reviewingLeave.leaveType)} ·{' '}
+                  {formatDateDDMMMYYYY(reviewingLeave.startDate)} –{' '}
+                  {formatDateDDMMMYYYY(reviewingLeave.endDate)} ({reviewingLeave.totalDays} hari)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewingLeave(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3.5 text-xs">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="font-semibold text-slate-500">Alasan Karyawan</p>
+                <p className="mt-1 leading-relaxed text-slate-800">{reviewingLeave.reason}</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Catatan HRD (Opsional)
+                </label>
+                <textarea
+                  rows={2}
+                  maxLength={250}
+                  value={reviewerNoteInput}
+                  onChange={(e) => setReviewerNoteInput(e.target.value)}
+                  placeholder="Contoh: Disetujui, mohon serah terima tugas sebelum cuti."
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                disabled={savingLeaveReview}
+                onClick={() => handleReviewLeave('rejected')}
+                className="min-h-[42px] rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-60"
+              >
+                Tolak
+              </button>
+              <button
+                type="button"
+                disabled={savingLeaveReview}
+                onClick={() => handleReviewLeave('approved')}
+                className="min-h-[42px] rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {savingLeaveReview ? 'Memproses...' : 'Setujui Cuti'}
               </button>
             </div>
           </div>

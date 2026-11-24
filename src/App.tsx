@@ -31,6 +31,7 @@ import {
   AppPortalMode,
   Attendance,
   Employee,
+  LeaveRequest,
   Payroll,
   Position,
   WorkSetting,
@@ -97,6 +98,7 @@ function AppShell() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
 
   const handleChangePortalMode = (mode: AppPortalMode) => {
@@ -234,6 +236,21 @@ function AppShell() {
           setPayrolls(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Payroll, 'id'>) })));
         },
         (err) => handleFirestoreError(err, OperationType.LIST, 'payrolls')
+      )
+    );
+
+    const leaveRef = isAdmin
+      ? collection(db, 'leave_requests')
+      : query(collection(db, 'leave_requests'), where('userId', '==', user.uid));
+    unsubs.push(
+      onSnapshot(
+        leaveRef,
+        (snap) => {
+          setLeaveRequests(
+            snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LeaveRequest, 'id'>) }))
+          );
+        },
+        (err) => handleFirestoreError(err, OperationType.LIST, 'leave_requests')
       )
     );
 
@@ -392,6 +409,7 @@ function AppShell() {
           employees={employees}
           attendances={attendances}
           payrolls={payrolls}
+          leaveRequests={leaveRequests}
           onSwitchToEmployeeApp={() => handleChangePortalMode('employee')}
           onLogout={handleLogout}
         />
@@ -402,6 +420,7 @@ function AppShell() {
 
   const myAttendances = attendances.filter((a) => a.userId === user.uid);
   const myPayrolls = payrolls.filter((p) => p.userId === user.uid);
+  const myLeaveRequests = leaveRequests.filter((l) => l.userId === user.uid);
 
   if (!currentEmployee) {
     return (
@@ -430,6 +449,7 @@ function AppShell() {
         workSetting={workSetting}
         attendances={myAttendances}
         payrolls={myPayrolls}
+        leaveRequests={myLeaveRequests}
         isAdmin={isAdmin}
         onSwitchToBackoffice={() => handleChangePortalMode('backoffice')}
         onLogout={handleLogout}

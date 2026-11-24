@@ -188,6 +188,38 @@ service cloud.firestore {
       data.updatedAt is timestamp;
     }
 
+    function isValidLeaveRequest(data) {
+      return data.keys().hasAll([
+        'employeeId', 'userId', 'employeeName', 'employeeEmail', 'employeeCode',
+        'positionTitle', 'leaveType', 'startDate', 'endDate', 'totalDays',
+        'reason', 'status', 'reviewerNote', 'reviewedBy', 'reviewedAt',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'employeeId', 'userId', 'employeeName', 'employeeEmail', 'employeeCode',
+        'positionTitle', 'leaveType', 'startDate', 'endDate', 'totalDays',
+        'reason', 'status', 'reviewerNote', 'reviewedBy', 'reviewedAt',
+        'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.employeeId) &&
+      isValidId(data.userId) &&
+      data.employeeName is string && data.employeeName.size() >= 1 && data.employeeName.size() <= 100 &&
+      data.employeeEmail is string && data.employeeEmail.size() >= 3 && data.employeeEmail.size() <= 160 &&
+      data.employeeCode is string && data.employeeCode.size() >= 1 && data.employeeCode.size() <= 32 &&
+      data.positionTitle is string && data.positionTitle.size() >= 1 && data.positionTitle.size() <= 80 &&
+      data.leaveType in ['annual', 'sick', 'permit', 'maternity'] &&
+      data.startDate is string && data.startDate.size() == 10 && data.startDate.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+      data.endDate is string && data.endDate.size() == 10 && data.endDate.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+      data.totalDays is number && data.totalDays >= 1 && data.totalDays <= 60 &&
+      data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 300 &&
+      data.status in ['pending', 'approved', 'rejected'] &&
+      data.reviewerNote is string && data.reviewerNote.size() <= 250 &&
+      data.reviewedBy is string && data.reviewedBy.size() <= 128 &&
+      data.reviewedAt is string && data.reviewedAt.size() <= 40 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
     // ---- Collection Rules ----
     match /admins_meta/{docId} {
       allow get: if isValidId(docId) && isSignedIn();
@@ -325,6 +357,36 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time &&
         incoming().employeeId == existing().employeeId;
       allow delete: if isValidId(payrollId) && isAdmin();
+    }
+
+    match /leave_requests/{leaveId} {
+      allow get: if isValidId(leaveId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid)
+      );
+      allow list: if isAdmin() || (
+        isSignedIn() && resource.data.userId == request.auth.uid
+      );
+      allow create: if isValidId(leaveId) && isSignedIn() && isValidLeaveRequest(incoming()) &&
+        incoming().createdAt == request.time && incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/employees/$(incoming().employeeId)) && (
+          isAdmin() || (
+            incoming().userId == request.auth.uid &&
+            incoming().status == 'pending' &&
+            incoming().reviewerNote == '' &&
+            incoming().reviewedBy == '' &&
+            incoming().reviewedAt == '' &&
+            get(/databases/$(database)/documents/employees/$(incoming().employeeId)).data.userId == request.auth.uid
+          )
+        );
+      allow update: if isValidId(leaveId) && isAdmin() && isValidLeaveRequest(incoming()) &&
+        incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time &&
+        incoming().employeeId == existing().employeeId &&
+        incoming().userId == existing().userId;
+      allow delete: if isValidId(leaveId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().userId == request.auth.uid && existing().status == 'pending')
+      );
     }
   }
 }
